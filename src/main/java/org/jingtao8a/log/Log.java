@@ -1,8 +1,12 @@
 package org.jingtao8a.log;
 
+import org.jingtao8a.utils.BlockQueue;
+import org.jingtao8a.utils.ThreadPool;
+
 import java.io.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 
 public class Log {
@@ -23,8 +27,12 @@ public class Log {
     private int splitLines;//一篇日志最大行数
     private long count;//同一天内日志行数记录
     private LogLevel logLevel;
-    private BufferedWriter bufferedWriter;
-    public void init(String dirName, String logName, int splitLines, LogLevel logLevel) throws IOException {
+    private List<BufferedWriter> bufferedWriterQueue = new LinkedList<>();
+    private int queueMaxSize = 5;
+    private ThreadPool<WriteTask> threadPool;
+
+    public void init(String dirName, String logName, int splitLines, LogLevel logLevel, int queueSize, int threadNum) throws IOException {
+        this.threadPool = new ThreadPool<>(queueSize, threadNum);
         this.logLevel = logLevel;
         this.dirName = dirName;
         this.logName = logName;
@@ -40,16 +48,17 @@ public class Log {
         if (!logFile.exists()) {
             logFile.createNewFile();
         }
-        this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(logFile)));
+        bufferedWriterQueue.add(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(logFile))));
         this.count = 0;
         this.splitLines = splitLines;
     }
-    public void flush() throws IOException {
-        if (this.bufferedWriter != null) {
-            this.bufferedWriter.flush();
+    public void flush() throws InterruptedException, IOException {
+        threadPool.stop();
+        for (BufferedWriter bufferedWriter: bufferedWriterQueue) {
+            bufferedWriter.flush();
         }
     }
-    public void writeLog(LogLevel logLevel, String format, Object... args) throws IOException {
+    public synchronized void writeLog(LogLevel logLevel, String format, Object... args) throws IOException, InterruptedException {
         if (logLevel.getValue() < this.logLevel.getValue()) {//忽略该日志
             return;
         }
@@ -60,7 +69,7 @@ public class Log {
         String nowDay = date.format(formatter);
         if (!this.today.equals(nowDay) || this.count % this.splitLines == 0) {
             File logFile;
-            this.bufferedWriter.flush();
+            this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1).flush();
             if (!this.today.equals(nowDay)) {//不是同一天
                 this.today = nowDay;
                 logFile = new File(new File(this.dirName), this.logName + this.today + ".txt");
@@ -68,7 +77,10 @@ public class Log {
                 logFile = new File(new File(this.dirName), this.logName + this.today + this.count / this.splitLines + ".txt");
             }
             logFile.createNewFile();
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(logFile)));
+            this.bufferedWriterQueue.add(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(logFile))));
+            if (this.bufferedWriterQueue.size() > queueMaxSize) {
+                this.bufferedWriterQueue.remove(0);
+            }
         }
         //构建好这条日志
         StringBuilder strBuilder = new StringBuilder();
@@ -91,9 +103,27 @@ public class Log {
         strBuilder.append(":" + Thread.currentThread().getStackTrace()[2].getFileName());
         strBuilder.append("," + Thread.currentThread().getStackTrace()[2].getLineNumber());
         strBuilder.append(":" + String.format(format, args) + "\r\n");
-        this.bufferedWriter.write(strBuilder.toString());
+        String logStr = strBuilder.toString();
+        if (!threadPool.addTask(new WriteTask(this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1), logStr))) {//异步执行
+            this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1).write(logStr);//同步执行
+        }
     }
-
+    private class WriteTask implements Runnable {
+        private String logStr;
+        private BufferedWriter bufferedWriter;
+        public WriteTask(BufferedWriter bufferedWriter, String logStr) {
+            this.bufferedWriter = bufferedWriter;
+            this.logStr = logStr;
+        }
+        @Override
+        public void run() {
+            try {
+                this.bufferedWriter.write(logStr);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
     //懒汉式 单例
     public static Log getInstance() {
         if (instance == null) {

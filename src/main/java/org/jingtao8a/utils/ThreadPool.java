@@ -1,15 +1,16 @@
 package org.jingtao8a.utils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ThreadPool<T extends Runnable> {
     private List<Thread> threadList;
     private BlockQueue<T> blockQueue;
-    private volatile  boolean running;
+    private AtomicBoolean running = new AtomicBoolean();
     public ThreadPool(int queueSize, int ThreadNum) {
         blockQueue = new BlockQueue<>(queueSize);
         threadList = new ArrayList<>(ThreadNum);
-        running = true;
+        running.set(true);
         for (int i = 0; i < ThreadNum; ++i) {
             threadList.add(new MyThread(this.blockQueue));
         }
@@ -26,7 +27,7 @@ public class ThreadPool<T extends Runnable> {
         return true;
     }
     public void stop() throws InterruptedException {
-        running = false;
+        running.set(false);
         for (Thread thread: threadList) {
             thread.join();
         }
@@ -41,7 +42,7 @@ public class ThreadPool<T extends Runnable> {
         }
         @Override
         public void run() {
-            while (running) {
+            while (running.get()) {
                 try {
                     T task = this.blockQueue.get();
                     task.run();

@@ -7,17 +7,16 @@ import java.io.*;
 
 public class testLog {
     @Test
-    public void testLog() throws IOException {
+    public void testLog() throws IOException, InterruptedException {
         Log logger = Log.getInstance();
         try {
-            logger.init("./log", "yuxintao", 3, Log.LogLevel.ERROR);
+            logger.init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
             for (int i = 0; i < 10; ++i) {
-                logger.writeLog(Log.LogLevel.ERROR, "%s", "hello");
+                logger.writeLog(Log.LogLevel.ERROR, "%s%d", "hello", i);
             }
-            logger.writeLog(Log.LogLevel.DEBUG, "%s", "world");
-            logger.writeLog(Log.LogLevel.ERROR, "%s", "world");
-            logger.writeLog(Log.LogLevel.ERROR, "%s", "world");
-            logger.flush();
+            for (int i = 0; i < 10; ++i) {
+                logger.writeLog(Log.LogLevel.ERROR, "%s%d", "world", i);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
