@@ -104,6 +104,7 @@ public class Log {
         strBuilder.append("," + Thread.currentThread().getStackTrace()[3].getLineNumber());
         strBuilder.append(":" + String.format(format, args) + "\r\n");
         String logStr = strBuilder.toString();
+        System.out.print(logStr);
         if (!threadPool.addTask(new WriteTask(this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1), logStr))) {//异步执行
             this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1).write(logStr);//同步执行
         }
