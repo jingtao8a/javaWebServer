@@ -9,10 +9,10 @@ public class ThreadPool<T extends Runnable> {
     private AtomicBoolean running = new AtomicBoolean();
     public ThreadPool(int queueSize, int ThreadNum) {
         blockQueue = new BlockQueue<>(queueSize);
-        threadList = new ArrayList<>(ThreadNum);
+        threadList = new ArrayList<>();
         running.set(true);
         for (int i = 0; i < ThreadNum; ++i) {
-            threadList.add(new MyThread(this.blockQueue));
+            threadList.add(new MyThread(i));
         }
         for (int i = 0; i < ThreadNum; ++i) {
             threadList.get(i).start();
@@ -29,6 +29,7 @@ public class ThreadPool<T extends Runnable> {
     public void stop() throws InterruptedException {
         running.set(false);
         for (Thread thread: threadList) {
+            thread.interrupt();
             thread.join();
         }
         while (!blockQueue.isEmpty()) {
@@ -36,18 +37,19 @@ public class ThreadPool<T extends Runnable> {
         }
     }
     class MyThread extends Thread {
-        private BlockQueue<T> blockQueue;
-        public MyThread(BlockQueue<T> blockQueue) {
-            this.blockQueue = blockQueue;
+        private int i;
+        public MyThread(int i) {
+            this.i = i;
         }
         @Override
         public void run() {
+            System.out.println("thread" + i);
             while (running.get()) {
                 try {
-                    T task = this.blockQueue.get();
+                    T task = blockQueue.get();
                     task.run();
                 } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    System.out.println("thread" + i + "interrupt");
                 }
             }
         }

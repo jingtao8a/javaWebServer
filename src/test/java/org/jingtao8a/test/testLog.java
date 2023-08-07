@@ -37,4 +37,38 @@ public class testLog {
         OutputStreamWriter os = new OutputStreamWriter(new FileOutputStream(new File("./a.txt")));
         os.write("hello");
     }
+
+    @Test
+    public void testMultiThreadLog() throws IOException, InterruptedException {
+        try {
+            Log.getInstance().init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
+            Thread[] threads = new Thread[3];
+            for (int i = 0; i < 3; ++i) {
+                threads[i] = new LogThread();
+            }
+            for (Thread thread: threads) {
+                thread.start();
+            }
+            for (Thread thread: threads) {
+                thread.join();
+            }
+        } finally {
+            Log.getInstance().flush();
+        }
+    }
+
+    class LogThread extends Thread {
+        @Override
+        public void run() {
+            for (int i = 0; i < 10; ++i) {
+                try {
+                    Log.getInstance().writeLog(Log.LogLevel.ERROR, "%s%d", "hello", i);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
 }

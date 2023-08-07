@@ -74,7 +74,7 @@ public class Log {
                 this.today = nowDay;
                 logFile = new File(new File(this.dirName), this.logName + this.today + ".txt");
             } else { //日志行数到了一篇日志的最大限制
-                logFile = new File(new File(this.dirName), this.logName + this.today + this.count / this.splitLines + ".txt");
+                logFile = new File(new File(this.dirName), this.logName + this.today + "-" + this.count / this.splitLines + ".txt");
             }
             logFile.createNewFile();
             this.bufferedWriterQueue.add(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(logFile))));
