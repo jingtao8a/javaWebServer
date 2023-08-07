@@ -43,13 +43,12 @@ public class ThreadPool<T extends Runnable> {
         }
         @Override
         public void run() {
-            System.out.println("thread" + i);
             while (running.get()) {
                 try {
                     T task = blockQueue.get();
                     task.run();
                 } catch (InterruptedException e) {
-                    System.out.println("thread" + i + "interrupt");
+                    throw new RuntimeException(e);
                 }
             }
         }

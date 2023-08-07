@@ -7,20 +7,17 @@ import java.io.*;
 
 public class testLog {
     @Test
-    public void testLog() throws IOException, InterruptedException {
-        Log logger = Log.getInstance();
+    public void testLog() {
         try {
-            logger.init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
+            Log.Init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
             for (int i = 0; i < 10; ++i) {
-                logger.writeLog(Log.LogLevel.ERROR, "%s%d", "hello", i);
+                Log.Info("%s%d", "hello", i);
             }
             for (int i = 0; i < 10; ++i) {
-                logger.writeLog(Log.LogLevel.ERROR, "%s%d", "world", i);
+                Log.Error("%s%d", "world", i);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         } finally {
-            logger.flush();
+            Log.Flush();
         }
     }
 
@@ -41,7 +38,7 @@ public class testLog {
     @Test
     public void testMultiThreadLog() throws IOException, InterruptedException {
         try {
-            Log.getInstance().init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
+            Log.Init("./log", "yuxintao", 3, Log.LogLevel.ERROR, 10, 3);
             Thread[] threads = new Thread[3];
             for (int i = 0; i < 3; ++i) {
                 threads[i] = new LogThread();
@@ -53,7 +50,7 @@ public class testLog {
                 thread.join();
             }
         } finally {
-            Log.getInstance().flush();
+            Log.Flush();
         }
     }
 
@@ -61,13 +58,7 @@ public class testLog {
         @Override
         public void run() {
             for (int i = 0; i < 10; ++i) {
-                try {
-                    Log.getInstance().writeLog(Log.LogLevel.ERROR, "%s%d", "hello", i);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                Log.Error("%s%d", "hello", i);
             }
         }
     }

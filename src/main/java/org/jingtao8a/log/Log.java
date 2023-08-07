@@ -31,7 +31,7 @@ public class Log {
     private int queueMaxSize = 5;
     private ThreadPool<WriteTask> threadPool;
 
-    public void init(String dirName, String logName, int splitLines, LogLevel logLevel, int queueSize, int threadNum) throws IOException {
+    private void init(String dirName, String logName, int splitLines, LogLevel logLevel, int queueSize, int threadNum) throws IOException {
         this.threadPool = new ThreadPool<>(queueSize, threadNum);
         this.logLevel = logLevel;
         this.dirName = dirName;
@@ -52,13 +52,13 @@ public class Log {
         this.count = 0;
         this.splitLines = splitLines;
     }
-    public void flush() throws InterruptedException, IOException {
+    private void flush() throws InterruptedException, IOException {
         threadPool.stop();
         for (BufferedWriter bufferedWriter: bufferedWriterQueue) {
             bufferedWriter.flush();
         }
     }
-    public synchronized void writeLog(LogLevel logLevel, String format, Object... args) throws IOException, InterruptedException {
+    private synchronized void writeLog(LogLevel logLevel, String format, Object... args) throws IOException, InterruptedException {
         if (logLevel.getValue() < this.logLevel.getValue()) {//忽略该日志
             return;
         }
@@ -100,8 +100,8 @@ public class Log {
             default:
                 throw new RuntimeException("Wrong LogLevel");
         }
-        strBuilder.append(":" + Thread.currentThread().getStackTrace()[2].getFileName());
-        strBuilder.append("," + Thread.currentThread().getStackTrace()[2].getLineNumber());
+        strBuilder.append(":" + Thread.currentThread().getStackTrace()[3].getFileName());
+        strBuilder.append("," + Thread.currentThread().getStackTrace()[3].getLineNumber());
         strBuilder.append(":" + String.format(format, args) + "\r\n");
         String logStr = strBuilder.toString();
         if (!threadPool.addTask(new WriteTask(this.bufferedWriterQueue.get(this.bufferedWriterQueue.size() - 1), logStr))) {//异步执行
@@ -134,5 +134,63 @@ public class Log {
             }
         }
         return instance;
+    }
+
+    public static void Init(String dirName, String logName, int splitLines, LogLevel logLevel, int queueSize, int threadNum) {
+        try {
+            getInstance().init(dirName, logName, splitLines, logLevel, queueSize, threadNum);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void Error(String format, Object... args) {
+        try {
+            getInstance().writeLog(LogLevel.ERROR, format, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void Warn(String format, Object... args) {
+        try {
+            getInstance().writeLog(LogLevel.WARN, format, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void Info(String format, Object... args) {
+        try {
+            getInstance().writeLog(LogLevel.INFO, format, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void Debug(String format, Object... args) {
+        try {
+            getInstance().writeLog(LogLevel.DEBUG, format, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void Flush() {
+        try {
+            getInstance().flush();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
