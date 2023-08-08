@@ -27,19 +27,37 @@ public class TCPConnection {
         channel.setChannelWriteCallback(new WriteFunciton());
     }
     public void send(String str) {
-        SocketChannel socketChannel = (SocketChannel)channel.getSelectionKey().channel();
-        outputBuffer.put(str.getBytes(StandardCharsets.UTF_8));
-        outputBuffer.flip();
-        int res;
-        try {
-            res = socketChannel.write(outputBuffer);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        if (res == 0 || outputBuffer.hasRemaining()) {
-            channel.enableWrite();
+        if (!channel.isWaitWrite()) { // 当前outputBuffer空闲
+            assert(outputBuffer.position() == 0);
+            SocketChannel socketChannel = (SocketChannel)channel.getSelectionKey().channel();
+            if (str.getBytes().length > outputBuffer.remaining()) {// 超出outputBuffer范围
+                outputBuffer = ByteBuffer.allocate(str.getBytes().length);
+            }
+            outputBuffer.put(str.getBytes());
+            outputBuffer.flip();
+            try {
+                socketChannel.write(outputBuffer);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            if (outputBuffer.hasRemaining()) {//还有剩余数据
+                String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
+                outputBuffer = ByteBuffer.allocate(remainStr.getBytes().length);
+                outputBuffer.put(remainStr.getBytes());
+                outputBuffer.flip();
+                channel.enableWrite();
+            } else {
+                outputBuffer.clear();
+            }
         } else {
+            String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
             outputBuffer.clear();
+            if (outputBuffer.remaining() < str.getBytes().length) {
+                outputBuffer = ByteBuffer.allocate(oldStr.getBytes().length + str.getBytes().length);
+            }
+            outputBuffer.put(oldStr.getBytes());
+            outputBuffer.put(str.getBytes());
+            outputBuffer.flip();
         }
     }
     public void connectionEstablished() {
@@ -55,11 +73,7 @@ public class TCPConnection {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            StringBuffer stringBuffer = new StringBuffer();
-            if (count > 0) {
-                inputBuffer.flip();
-                stringBuffer.append(new String(inputBuffer.array(), 0, count));
-            } else {
+            if (count <= 0) {
                 channel.getSelectionKey().cancel();
                 try {
                     clientChannel.close();
@@ -71,11 +85,11 @@ public class TCPConnection {
                 }
                 return;
             }
-            String str = stringBuffer.toString();
-            System.out.println(str);
+            inputBuffer.flip();
             if (messageCallBack != null) {
                 messageCallBack.run(TCPConnection.this, inputBuffer);
             }
+            inputBuffer.clear();
         }
     }
 
@@ -88,7 +102,7 @@ public class TCPConnection {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            if (!outputBuffer.hasRemaining()) {
+            if (!outputBuffer.hasRemaining()) { // 发送完毕
                 outputBuffer.clear();
                 channel.disableWrite();
             }

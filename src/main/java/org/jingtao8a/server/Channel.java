@@ -20,6 +20,7 @@ public class Channel { // 对SelectionKey的封装，加上了回调函数
     public void disableRead() { selectionKey.interestOps(selectionKey.interestOps() & (~SelectionKey.OP_READ)); }
     public void disableWrite() { selectionKey.interestOps(selectionKey.interestOps() & (~SelectionKey.OP_WRITE)); }
     public void disableAccept() { selectionKey.interestOps(selectionKey.interestOps() & (~SelectionKey.OP_ACCEPT)); }
+    public boolean isWaitWrite() { return (selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0; }
     public Channel(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
         selectionKey.attach(this);
