@@ -1,10 +1,16 @@
 package org.jingtao8a.timer;
 
-import java.sql.Time;
 import java.util.*;
 
 public class TimerManager {
     private PriorityQueue<Timer> heap = new PriorityQueue<>();
+    public long getNextTick() {
+        if (heap.size() == 0) {
+            return 0;
+        }
+        long res = heap.peek().getTime() - System.currentTimeMillis();
+        return res < 0 ? 0 : res;
+    }
     public List<Timer> getExpiredTimerList() {
         List<Timer> timerList = new ArrayList<>();
         long curTime= System.currentTimeMillis();
