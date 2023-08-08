@@ -7,12 +7,12 @@ import java.util.*;
 
 @Setter
 @Getter
-public class TCPServer {
+public class TCPServerSingle {
     private EventLoop eventLoop = new EventLoop();;
     private Acceptor acceptor;
     private List<TCPConnection> tcpConnectionList = new ArrayList<>();
     private MessageCallback messageCallback;
-    public TCPServer(int port) {
+    public TCPServerSingle(int port) {
         acceptor = new Acceptor(eventLoop, port);
         acceptor.setNewConnectionCallback((TCPConnection connection)->{
             tcpConnectionList.add(connection);

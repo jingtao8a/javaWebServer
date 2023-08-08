@@ -68,12 +68,13 @@ public class TCPConnection {
         public void run(Channel channel) {
             SocketChannel clientChannel = (SocketChannel)channel.getSelectionKey().channel();
             int count = 0;
+            boolean close = false;
             try {
                 count = clientChannel.read(inputBuffer);
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                close = true;
             }
-            if (count <= 0) {
+            if (count <= 0 || close) {
                 channel.getSelectionKey().cancel();
                 try {
                     clientChannel.close();
