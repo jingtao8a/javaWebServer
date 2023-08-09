@@ -10,9 +10,12 @@ import org.jingtao8a.Function.MessageCallback;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.UUID;
+
 @Setter
 @Getter
 public class TCPConnection {
+    private UUID uuid = UUID.randomUUID();
     private Channel channel;
     private MessageCallback messageCallBack;
     private CloseConnectionCallback closeConnectionCallback;
