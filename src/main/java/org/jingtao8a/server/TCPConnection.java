@@ -21,8 +21,8 @@ public class TCPConnection {
     private CloseConnectionCallback closeConnectionCallback;
     private ByteBuffer inputBuffer = ByteBuffer.allocate(1024);
     private ByteBuffer outputBuffer = ByteBuffer.allocate(1024);
-    public TCPConnection(SelectionKey selectionKey) {
-        channel = new Channel(selectionKey);
+    public TCPConnection(Channel channel) {
+        this.channel = channel;
         channel.setChannelReadCallback(new ReadFunction());
         channel.setChannelWriteCallback(new WriteFunciton());
     }

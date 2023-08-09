@@ -2,6 +2,7 @@ package org.jingtao8a.server;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.jingtao8a.Function.ChannelAcceptCallback;
 import org.jingtao8a.Function.NewConnectionCallback;
 
 import java.io.IOException;
@@ -15,42 +16,31 @@ import java.net.SocketOptions;
 @Setter
 @Getter
 public class Acceptor {
-    private Channel channel;
-    private EventLoop eventLoop;
-    private int port;
-    private NewConnectionCallback newConnectionCallback;
-    public Acceptor(EventLoop eventLoop, int port) {
+    private Channel acceptorChannel;
+    private EventLoop eventLoop; // 负责监听的EventLoop
+    private InetSocketAddress listenSocketAddress; // 监听的地址
+    public Acceptor(EventLoop eventLoop, InetSocketAddress listenSocketAddress) {
         this.eventLoop = eventLoop;
-        this.port  = port;
-        bind();
+        this.listenSocketAddress = listenSocketAddress;
+        bind();//绑定地址
     }
 
     private void bind() {
         try {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-//            serverSocketChannel.setOption(StandardSocketOptions.SO_REUSEPORT, true);
-            serverSocketChannel.setOption(StandardSocketOptions.SO_REUSEPORT, true);
-//            serverSocketChannel.socket().setReuseAddress(true);
-            serverSocketChannel.bind(new InetSocketAddress("192.168.0.169", port));
-            SelectionKey selectionKey= eventLoop.getEpoller().register(serverSocketChannel);
-
-                    channel = new Channel(selectionKey);
-            channel.setChannelAcceptCallback((Channel channel)->{
-                try {
-                    SocketChannel clientChannel = (SocketChannel)((ServerSocketChannel)channel.getSelectionKey().channel()).accept();
-                    SelectionKey clientkey = eventLoop.getEpoller().register(clientChannel);
-                    if (newConnectionCallback != null) {
-                        newConnectionCallback.run(new TCPConnection(clientkey));
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            serverSocketChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+            serverSocketChannel.bind(listenSocketAddress);
+            this.acceptorChannel = eventLoop.register(serverSocketChannel);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
-    public void listen() {
-        channel.enableAccept();
+
+    public void setChannelAcceptCallback(ChannelAcceptCallback channelAcceptCallback) {
+        acceptorChannel.setChannelAcceptCallback(channelAcceptCallback);
+    }
+
+    public void listen() {//开启监听
+        acceptorChannel.enableAccept();
     }
 }

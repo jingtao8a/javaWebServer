@@ -9,11 +9,9 @@ import java.util.*;
 
 public class Epoller {
     private Selector selector;
-    private EventLoop eventLoop;
     private long timeSlot;//selector wait time
 
-    public Epoller(long timeSlot, EventLoop eventLoop) {
-        this.eventLoop = eventLoop;
+    public Epoller(long timeSlot) {
         this.timeSlot = timeSlot;
         try {
             selector = Selector.open();
@@ -42,10 +40,11 @@ public class Epoller {
         }
         return channels;
     }
-    public SelectionKey register(AbstractSelectableChannel channel) {
+    public Channel register(AbstractSelectableChannel channel) {
         try {
             channel.configureBlocking(false);
-            return channel.register(selector, 0);
+            SelectionKey key = channel.register(selector, 0);
+            return new Channel(key);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
