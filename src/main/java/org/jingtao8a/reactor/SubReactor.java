@@ -3,6 +3,7 @@ package org.jingtao8a.reactor;
 import lombok.Getter;
 import lombok.Setter;
 import org.jingtao8a.Function.MessageCallback;
+import org.jingtao8a.http.HTTPHandlerManager;
 import org.jingtao8a.server.Channel;
 import org.jingtao8a.server.EventLoop;
 import org.jingtao8a.server.TCPConnection;
@@ -23,6 +24,7 @@ public class SubReactor extends Thread{
         connection.setMessageCallBack(messageCallback);
         connection.setCloseConnectionCallback((TCPConnection closeConnection)->{
             tcpConnectionList.remove(closeConnection);
+            HTTPHandlerManager.remove(closeConnection.getUuid());
         });
         connection.connectionEstablished();
     }

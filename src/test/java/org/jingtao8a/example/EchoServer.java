@@ -12,7 +12,7 @@ public class EchoServer {
     public EchoServer() {
         tcpServer.setMessageCallback((TCPConnection connection, ByteBuffer buffer)-> {
             String str = new String(buffer.array(), 0, buffer.limit());
-            System.out.println(str + " ThreadId:" + Thread.currentThread().getId());
+
             connection.send(str);
         });
     }
