@@ -9,10 +9,7 @@ import org.jingtao8a.Function.MessageCallback;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-
 @Setter
 @Getter
 public class TCPConnection {
