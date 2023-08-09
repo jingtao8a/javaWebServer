@@ -9,6 +9,8 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.net.StandardSocketOptions;
+import java.net.SocketOptions;
 
 @Setter
 @Getter
@@ -26,9 +28,13 @@ public class Acceptor {
     private void bind() {
         try {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-            serverSocketChannel.bind(new InetSocketAddress(port));
+//            serverSocketChannel.setOption(StandardSocketOptions.SO_REUSEPORT, true);
+            serverSocketChannel.setOption(StandardSocketOptions.SO_REUSEPORT, true);
+//            serverSocketChannel.socket().setReuseAddress(true);
+            serverSocketChannel.bind(new InetSocketAddress("192.168.0.169", port));
             SelectionKey selectionKey= eventLoop.getEpoller().register(serverSocketChannel);
-            channel = new Channel(selectionKey);
+
+                    channel = new Channel(selectionKey);
             channel.setChannelAcceptCallback((Channel channel)->{
                 try {
                     SocketChannel clientChannel = (SocketChannel)((ServerSocketChannel)channel.getSelectionKey().channel()).accept();
