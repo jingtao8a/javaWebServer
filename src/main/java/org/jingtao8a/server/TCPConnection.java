@@ -10,7 +10,9 @@ import org.jingtao8a.Function.MessageCallback;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.locks.StampedLock;
 
 @Setter
 @Getter
@@ -30,10 +32,11 @@ public class TCPConnection {
         if (!channel.isWaitWrite()) { // 当前outputBuffer空闲
             assert(outputBuffer.position() == 0);
             SocketChannel socketChannel = (SocketChannel)channel.getSelectionKey().channel();
-            if (str.getBytes().length > outputBuffer.remaining()) {// 超出outputBuffer范围
-                outputBuffer = ByteBuffer.allocate(str.getBytes().length);
+            int strLength = str.getBytes(StandardCharsets.UTF_8).length;
+            if (strLength > outputBuffer.remaining()) {// 超出outputBuffer范围
+                outputBuffer = ByteBuffer.allocate(strLength * 2);
             }
-            outputBuffer.put(str.getBytes());
+            outputBuffer.put(str.getBytes(StandardCharsets.UTF_8));
             outputBuffer.flip();
             try {
                 socketChannel.write(outputBuffer);
@@ -41,23 +44,23 @@ public class TCPConnection {
                 throw new RuntimeException(e);
             }
             if (outputBuffer.hasRemaining()) {//还有剩余数据
-                String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
-                outputBuffer = ByteBuffer.allocate(remainStr.getBytes().length * 2);
-                outputBuffer.put(remainStr.getBytes());
+                String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining());
+                outputBuffer = ByteBuffer.allocate(remainStr.getBytes(StandardCharsets.UTF_8).length * 2);
+                outputBuffer.put(remainStr.getBytes(StandardCharsets.UTF_8));
                 outputBuffer.flip();
                 channel.enableWrite();
             } else {
                 outputBuffer.clear();
             }
         } else {
-            String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
+            String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), StandardCharsets.UTF_8);
             outputBuffer.clear();
-            int totalLength = oldStr.getBytes().length + str.getBytes().length;
+            int totalLength = oldStr.getBytes(StandardCharsets.UTF_8).length + str.getBytes(StandardCharsets.UTF_8).length;
             if (outputBuffer.limit() < totalLength) {
                 outputBuffer = ByteBuffer.allocate(totalLength * 2);
             }
-            outputBuffer.put(oldStr.getBytes());
-            outputBuffer.put(str.getBytes());
+            outputBuffer.put(oldStr.getBytes(StandardCharsets.UTF_8));
+            outputBuffer.put(str.getBytes(StandardCharsets.UTF_8));
             outputBuffer.flip();
         }
     }
