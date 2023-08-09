@@ -42,7 +42,7 @@ public class TCPConnection {
             }
             if (outputBuffer.hasRemaining()) {//还有剩余数据
                 String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
-                outputBuffer = ByteBuffer.allocate(remainStr.getBytes().length);
+                outputBuffer = ByteBuffer.allocate(remainStr.getBytes().length * 2);
                 outputBuffer.put(remainStr.getBytes());
                 outputBuffer.flip();
                 channel.enableWrite();
@@ -52,8 +52,9 @@ public class TCPConnection {
         } else {
             String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.limit());
             outputBuffer.clear();
-            if (outputBuffer.remaining() < str.getBytes().length) {
-                outputBuffer = ByteBuffer.allocate(oldStr.getBytes().length + str.getBytes().length);
+            int totalLength = oldStr.getBytes().length + str.getBytes().length;
+            if (outputBuffer.limit() < totalLength) {
+                outputBuffer = ByteBuffer.allocate(totalLength * 2);
             }
             outputBuffer.put(oldStr.getBytes());
             outputBuffer.put(str.getBytes());
