@@ -42,4 +42,11 @@ public class testBuffer {
         chars = buffer.array();
         System.out.println(chars[0]);
     }
+
+    @Test
+    public void testCharBuffer2() {
+        CharBuffer buffer = CharBuffer.allocate(1024);
+        buffer.flip();
+        printInfo(buffer);
+    }
 }

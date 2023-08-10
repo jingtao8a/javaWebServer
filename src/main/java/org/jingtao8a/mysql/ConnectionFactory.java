@@ -26,7 +26,7 @@ public class ConnectionFactory {
         return connectionFactory;
     }
 
-    public static Connection getConnection() {
+    public static synchronized Connection getConnection() {
         try {
             return getInstance().dataSource.getConnection();
         } catch (SQLException e) {

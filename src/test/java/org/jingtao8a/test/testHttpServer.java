@@ -9,7 +9,7 @@ import java.net.InetSocketAddress;
 public class testHttpServer {
     @Test
     public void testHttpServer() {
-        HTTPServer httpServer = new HTTPServer(new InetSocketAddress(9999));
+        HTTPServer httpServer = new HTTPServer(new InetSocketAddress(7899));
         httpServer.start();
     }
 }

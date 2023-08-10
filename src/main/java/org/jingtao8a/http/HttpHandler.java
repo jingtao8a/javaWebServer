@@ -1,11 +1,19 @@
 package org.jingtao8a.http;
 
-import java.io.UnsupportedEncodingException;
+import org.jingtao8a.mysql.ConnectionFactory;
+import org.jingtao8a.server.TCPConnection;
+
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 public class HttpHandler {
+    private static String staticRoot = "D:/java_webserver/src/main/resources/root";
     private CharBuffer inputBuffer;
     private CharBuffer outputBuffer;
     private CHECK_STATE checkState;
@@ -44,6 +52,7 @@ public class HttpHandler {
     }
     private void init() {
         inputBuffer = CharBuffer.allocate(1024);
+        inputBuffer.flip();
         outputBuffer = CharBuffer.allocate(1024);
         checkState = CHECK_STATE.CHECK_STATE_REQUESTLINE;// 主状态机初始状态
         checkedIdx = 0; // 从状态机使用的游标
@@ -55,7 +64,7 @@ public class HttpHandler {
         contentLength = 0;
         content = null;
     }
-    public String process(ByteBuffer buffer, String charSetName) {
+    public void process(TCPConnection connection, ByteBuffer buffer, String charSetName) {
         String newStr = null;
         try {
             newStr = new String(buffer.array(), buffer.position(), buffer.limit(), charSetName);
@@ -63,7 +72,7 @@ public class HttpHandler {
             throw new RuntimeException(e);
         }
         String oldStr = new String();
-        if (checkedIdx != 0) {//已经开始读取了
+        if (inputBuffer.hasRemaining()) {// inputBuffer中还存在数据
             oldStr = new String(inputBuffer.array(), inputBuffer.position(), inputBuffer.remaining());
         }
         inputBuffer.clear();
@@ -76,16 +85,37 @@ public class HttpHandler {
         inputBuffer.flip();
         char[] request = inputBuffer.array();
         HTTP_CODE res = processRead(request);
-        if (res != HTTP_CODE.NO_REQUEST) {
-            init();
+        if (res != HTTP_CODE.NO_REQUEST) {// 解析报文并处理完毕
+            processWrite(connection, res, charSetName);
+            if (checkedIdx < inputBuffer.limit()) { // inputBuffer仍然有多余的数据
+                String remainStr = new String(inputBuffer.array(), checkedIdx, inputBuffer.limit() - checkedIdx);
+                init();
+                inputBuffer.clear();
+                if (remainStr.length() > inputBuffer.limit()) {
+                    inputBuffer = CharBuffer.allocate(remainStr.length() * 2);
+                }
+                inputBuffer.put(remainStr);
+                inputBuffer.flip();
+                process(connection, ByteBuffer.allocate(0), charSetName);// 继续下一轮处理
+            } else {
+                init();
+            }
         }
-        return "ok";
     }
 
     private HTTP_CODE processRead(char[] request) {
         HTTP_CODE ret;
         LINE_STATUS line_status;
-        while ((line_status = parseLine(request)) == LINE_STATUS.LINE_OK) { //成功解析一行
+        while (true) { //成功解析一行
+            line_status = parseLine(request);
+            if (line_status == LINE_STATUS.LINE_BAD) {
+                return HTTP_CODE.BAD_REQUEST;
+            }
+            if (line_status == LINE_STATUS.LINE_OPEN) {
+                if (checkState != CHECK_STATE.CHECK_STATE_CONTENT) {
+                    return HTTP_CODE.NO_REQUEST;
+                }
+            }
             textHeader = startLine;
             startLine = checkedIdx;
             switch (checkState) {
@@ -104,17 +134,13 @@ public class HttpHandler {
                     }
                     break;
                 case CHECK_STATE_CONTENT:
-                    content = new String(request, textHeader, textHeader + contentLength);
+                    content = new String(request, textHeader, contentLength);
                     //开始处理
                     return doRequest();
                 default:
                     return HTTP_CODE.INTERNAL_ERROR;
             }
         }
-        if (line_status == LINE_STATUS.LINE_BAD) {
-            return HTTP_CODE.BAD_REQUEST;
-        }
-        return HTTP_CODE.NO_REQUEST;
     }
 
     private HTTP_CODE parseRequestLine(char[] request) {
@@ -229,6 +255,175 @@ public class HttpHandler {
     }
 
     private HTTP_CODE doRequest() {
-        return HTTP_CODE.GET_REQUEST;
+        if (method == METHOD.GET) {
+            if (uri.equalsIgnoreCase("/")) {
+                uri = "/judge.html";
+            }
+            if (uri.charAt(1) == '0') {
+                uri = "/register.html";
+            } else if (uri.charAt(1) == '1') {
+                uri = "/log.html";
+            } else if (uri.charAt(1) == '4') {
+                uri = "/stu_id.html";
+            } else if (uri.charAt(1) == '5') {
+                uri = "/photo.html";
+            }
+            File file = new File(staticRoot + uri);
+            if (!file.exists()) {
+                return HTTP_CODE.NO_RESOURCE;
+            }
+        } else if (method == METHOD.POST) {
+                Connection connection = ConnectionFactory.getConnection();
+                try {
+                    connection.setAutoCommit(false);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                //提取名字和密码
+                int i;
+                for (i = 5; i < content.length(); ++i) {
+                    if (content.charAt(i) == '&') {
+                        break;
+                    }
+                }
+                String name = content.substring(5, i);
+                int start = i + 10;
+                for (i = start; i < content.length(); ++i) {
+                    if (content.charAt(i) == '\0') {
+                        break;
+                    }
+                }
+                String password = content.substring(start, i);
+                try {
+                    if (uri.charAt(1) == '3') {//注册
+                        Statement queryStmt = connection.createStatement();
+                        ResultSet queryRes = queryStmt.executeQuery("select * from users where name=\"" + name + "\"");
+                        if (queryRes.next()) {
+                            uri = "/registerError.html";
+                        } else {
+                            Statement insertStmt = connection.createStatement();
+                            insertStmt.executeQuery("insert into users values(" + name + "," + password + ")");
+                            uri = "/log.html";
+                        }
+                    } else if (uri.charAt(1) == '2') {// 登入
+                        Statement queryStmt = connection.createStatement();
+                        ResultSet queryRes = queryStmt.executeQuery("select * from users where name=\"" + name + "\"");
+                        if (queryRes.next()) {
+                            uri = "/welcome.html";
+                        } else {
+                            uri = "/logError.html";
+                        }
+                    }
+                    connection.commit();
+                } catch (SQLException e) {
+                    try {
+                        connection.rollback();
+                    } catch (SQLException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    throw new RuntimeException(e);
+                } finally {
+                    try {
+                        connection.close();
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+        }
+        return HTTP_CODE.FILE_REQUEST;
+    }
+
+    private void processWrite(TCPConnection connection,  HTTP_CODE code, String charSetName) {
+        File file;
+        StringBuffer stringBuffer;
+        BufferedReader bufferedReader;
+        String str;
+        switch (code) {
+            case INTERNAL_ERROR:
+                addStatusLine(500, error_500_title);
+                addContentLength(error_500_form.length());
+                addConteType();
+                addBlankLine();
+                addContent(error_500_form);
+                break;
+            case BAD_REQUEST:
+                addStatusLine(400, error_400_title);
+                addContentLength(error_400_form.length());
+                addConteType();
+                addBlankLine();
+                addContent(error_404_form);
+                break;
+            case FORBIDDEN_REQUEST:
+                addStatusLine(403, error_403_title);
+                addContentLength(error_403_form.length());
+                addConteType();
+                addBlankLine();
+                addContent(error_403_form);
+                break;
+            case NO_RESOURCE:
+                addStatusLine(404, error_404_title);
+                addContentLength(error_404_form.length());
+                addConteType();
+                addBlankLine();
+                addContent(error_404_form);
+                break;
+            case FILE_REQUEST:
+                addStatusLine(200, ok_200_title);
+                addConteType();
+                file = new File(staticRoot + uri);
+                stringBuffer = new StringBuffer();
+                try {
+                    bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8));
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                while (true) {
+                    try {
+                        if ((str = bufferedReader.readLine())== null) {
+                            break;
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    stringBuffer.append(str);
+                }
+                addContentLength(stringBuffer.toString().length());
+                addBlankLine();
+                addContent(stringBuffer.toString());
+                break;
+        }
+        outputBuffer.flip();
+        connection.send(new String(outputBuffer.array()), charSetName);
+        outputBuffer.clear();
+    }
+
+    private void addStatusLine(int status, String title) {
+        String statusLineStr = String.format("%s %d %s\r\n", "HTTP/1.1", status, title);
+        addResponse(statusLineStr);
+    }
+    private void addContentLength(int len) {
+        String contentLengthStr = String.format("Content-Length:%d\r\n", len);
+        addResponse(contentLengthStr);
+    }
+
+    private void addConteType() {
+        String contentTypeStr = String.format("Content-Type:%s\r\n", "text/html");
+        addResponse(contentTypeStr);
+    }
+
+    private void addContent(String text) {
+        addResponse(text);
+    }
+    private void addBlankLine() {
+        addResponse("\r\n");
+    }
+    private void addResponse(String str) {
+        String oldStr = new String(outputBuffer.array(), 0, outputBuffer.position());
+        int totalLength = oldStr.length() + str.length();
+        if (totalLength > outputBuffer.limit()) { // outputBuffer扩容
+            outputBuffer = CharBuffer.allocate(totalLength * 2);
+            outputBuffer.put(oldStr);
+        }
+        outputBuffer.put(str);
     }
 }
