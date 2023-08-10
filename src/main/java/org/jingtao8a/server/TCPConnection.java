@@ -8,6 +8,7 @@ import org.jingtao8a.Function.CloseConnectionCallback;
 import org.jingtao8a.Function.MessageCallback;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -28,40 +29,53 @@ public class TCPConnection {
         channel.setChannelReadCallback(new ReadFunction());
         channel.setChannelWriteCallback(new WriteFunciton());
     }
-    public void send(String str) {
+    public void send(String str, String charSetName) {
         if (!channel.isWaitWrite()) { // 当前outputBuffer空闲
             assert(outputBuffer.position() == 0);
             SocketChannel socketChannel = (SocketChannel)channel.getSelectionKey().channel();
-            int strLength = str.getBytes(StandardCharsets.UTF_8).length;
-            if (strLength > outputBuffer.remaining()) {// 超出outputBuffer范围
-                outputBuffer = ByteBuffer.allocate(strLength * 2);
+            try {
+                int strLength = str.getBytes(charSetName).length;
+                if (strLength > outputBuffer.remaining()) {// 超出outputBuffer范围
+                    outputBuffer = ByteBuffer.allocate(strLength * 2);
+                }
+                outputBuffer.put(str.getBytes(charSetName));
+                outputBuffer.flip();
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
             }
-            outputBuffer.put(str.getBytes(StandardCharsets.UTF_8));
-            outputBuffer.flip();
+
             try {
                 socketChannel.write(outputBuffer);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
             if (outputBuffer.hasRemaining()) {//还有剩余数据
-                String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining());
-                outputBuffer = ByteBuffer.allocate(remainStr.getBytes(StandardCharsets.UTF_8).length * 2);
-                outputBuffer.put(remainStr.getBytes(StandardCharsets.UTF_8));
+                try {
+                    String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), charSetName);
+                    outputBuffer = ByteBuffer.allocate(remainStr.getBytes(charSetName).length * 2);
+                    outputBuffer.put(remainStr.getBytes(charSetName));
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e);
+                }
                 outputBuffer.flip();
                 channel.enableWrite();
             } else {
                 outputBuffer.clear();
             }
         } else {
-            String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), StandardCharsets.UTF_8);
-            outputBuffer.clear();
-            int totalLength = oldStr.getBytes(StandardCharsets.UTF_8).length + str.getBytes(StandardCharsets.UTF_8).length;
-            if (outputBuffer.limit() < totalLength) {
-                outputBuffer = ByteBuffer.allocate(totalLength * 2);
+            try {
+                String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), charSetName);
+                outputBuffer.clear();
+                int totalLength = oldStr.getBytes(charSetName).length + str.getBytes(charSetName).length;
+                if (outputBuffer.limit() < totalLength) {
+                    outputBuffer = ByteBuffer.allocate(totalLength * 2);
+                }
+                outputBuffer.put(oldStr.getBytes(charSetName));
+                outputBuffer.put(str.getBytes(charSetName));
+                outputBuffer.flip();
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
             }
-            outputBuffer.put(oldStr.getBytes(StandardCharsets.UTF_8));
-            outputBuffer.put(str.getBytes(StandardCharsets.UTF_8));
-            outputBuffer.flip();
         }
     }
     public void connectionEstablished() {
