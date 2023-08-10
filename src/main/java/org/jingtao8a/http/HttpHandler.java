@@ -302,7 +302,7 @@ public class HttpHandler {
                             uri = "/registerError.html";
                         } else {
                             Statement insertStmt = connection.createStatement();
-                            insertStmt.executeQuery("insert into users values(" + name + "," + password + ")");
+                            insertStmt.executeUpdate("insert into users values(" + name + "," + password + ")");
                             uri = "/log.html";
                         }
                     } else if (uri.charAt(1) == '2') {// 登入
