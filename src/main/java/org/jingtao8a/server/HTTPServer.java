@@ -12,8 +12,8 @@ public class HTTPServer {
         tcpServer = new TCPServer(listenSocketAddress);
         tcpServer.setMessageCallback((TCPConnection connection, ByteBuffer buffer)->{
             HttpHandler httpHandler = HTTPHandlerManager.get(connection.getUuid());
-            String result = httpHandler.process(buffer);
-            connection.send(result);
+            String result = httpHandler.process(buffer, "GBK");
+            connection.send(result, "GBK");
         });
     }
     public void start() {
