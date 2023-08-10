@@ -7,10 +7,10 @@ import java.util.UUID;
 public class HTTPHandlerManager {
     private static Map<UUID, HttpHandler> map = new HashMap<>();
 
-    public static void remove(UUID uuid) {
+    public static synchronized void remove(UUID uuid) {
         map.remove(uuid);
     }
-    public static HttpHandler get(UUID uuid) {
+    public static synchronized HttpHandler get(UUID uuid) {
         if (!map.containsKey(uuid)) {
             map.put(uuid, new HttpHandler());
         }
