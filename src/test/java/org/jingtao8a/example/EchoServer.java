@@ -20,7 +20,7 @@ public class EchoServer {
             } catch (UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
-            connection.send(str, "GBK");
+            connection.send(buffer);
         });
     }
     public void start() {

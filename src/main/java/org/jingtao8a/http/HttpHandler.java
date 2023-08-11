@@ -15,11 +15,12 @@ import java.sql.Statement;
 public class HttpHandler {
     private static String staticRoot = "D:/java_webserver/src/main/resources/root";
     private CharBuffer inputBuffer;
-    private CharBuffer outputBuffer;
+    private ByteBuffer outputBuffer;
     private CHECK_STATE checkState;
     private int checkedIdx;
     private int startLine;
     private int textHeader;
+    private String charSetName;
     private enum CHECK_STATE { CHECK_STATE_REQUESTLINE, CHECK_STATE_HEADER, CHECK_STATE_CONTENT } // 主状态机的状态
     private enum LINE_STATUS { LINE_OK, LINE_BAD, LINE_OPEN } //从状态机解析结果
     private enum HTTP_CODE { // 主状态机解析结果
@@ -53,7 +54,7 @@ public class HttpHandler {
     private void init() {
         inputBuffer = CharBuffer.allocate(1024);
         inputBuffer.flip();
-        outputBuffer = CharBuffer.allocate(1024);
+        outputBuffer = ByteBuffer.allocate(1024);
         checkState = CHECK_STATE.CHECK_STATE_REQUESTLINE;// 主状态机初始状态
         checkedIdx = 0; // 从状态机使用的游标
         startLine = 0;// 主状态机使用的游标, 已经解析的字符个数(同时也是新行的开始)
@@ -65,6 +66,7 @@ public class HttpHandler {
         content = null;
     }
     public void process(TCPConnection connection, ByteBuffer buffer, String charSetName) {
+        this.charSetName = charSetName;
         String newStr = null;
         try {
             newStr = new String(buffer.array(), buffer.position(), buffer.limit(), charSetName);
@@ -86,7 +88,7 @@ public class HttpHandler {
         char[] request = inputBuffer.array();
         HTTP_CODE res = processRead(request);
         if (res != HTTP_CODE.NO_REQUEST) {// 解析报文并处理完毕
-            processWrite(connection, res, charSetName);
+            processWrite(connection, res);
             if (checkedIdx < inputBuffer.limit()) { // inputBuffer仍然有多余的数据
                 String remainStr = new String(inputBuffer.array(), checkedIdx, inputBuffer.limit() - checkedIdx);
                 init();
@@ -333,97 +335,105 @@ public class HttpHandler {
         return HTTP_CODE.FILE_REQUEST;
     }
 
-    private void processWrite(TCPConnection connection,  HTTP_CODE code, String charSetName) {
+    private void processWrite(TCPConnection connection,  HTTP_CODE code) {
         File file;
-        StringBuffer stringBuffer;
-        BufferedReader bufferedReader;
-        String str;
+        byte[] fileArray;
+        InputStream inputStream;
         switch (code) {
             case INTERNAL_ERROR:
                 addStatusLine(500, error_500_title);
                 addContentLength(error_500_form.length());
                 addConteType();
                 addBlankLine();
-                addContent(error_500_form);
+                addContent(strToBytes(error_500_form));
                 break;
             case BAD_REQUEST:
                 addStatusLine(400, error_400_title);
                 addContentLength(error_400_form.length());
                 addConteType();
                 addBlankLine();
-                addContent(error_404_form);
+                addContent(strToBytes(error_404_form));
                 break;
             case FORBIDDEN_REQUEST:
                 addStatusLine(403, error_403_title);
                 addContentLength(error_403_form.length());
                 addConteType();
                 addBlankLine();
-                addContent(error_403_form);
+                addContent(strToBytes(error_403_form));
                 break;
             case NO_RESOURCE:
                 addStatusLine(404, error_404_title);
                 addContentLength(error_404_form.length());
                 addConteType();
                 addBlankLine();
-                addContent(error_404_form);
+                addContent(strToBytes(error_404_form));
                 break;
             case FILE_REQUEST:
                 addStatusLine(200, ok_200_title);
                 addConteType();
                 file = new File(staticRoot + uri);
-                stringBuffer = new StringBuffer();
+                fileArray = new byte[(int)file.length()];
                 try {
-                    bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8));
+                    inputStream = new BufferedInputStream(new FileInputStream(file));
                 } catch (FileNotFoundException e) {
                     throw new RuntimeException(e);
                 }
-                while (true) {
-                    try {
-                        if ((str = bufferedReader.readLine())== null) {
-                            break;
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    stringBuffer.append(str);
+                try {
+                    inputStream.read(fileArray);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
-                addContentLength(stringBuffer.toString().length());
+                addContentLength(fileArray.length);
                 addBlankLine();
-                addContent(stringBuffer.toString());
+                addContent(fileArray);
                 break;
         }
         outputBuffer.flip();
-        connection.send(new String(outputBuffer.array()), charSetName);
+        connection.send(outputBuffer);
         outputBuffer.clear();
     }
 
     private void addStatusLine(int status, String title) {
         String statusLineStr = String.format("%s %d %s\r\n", "HTTP/1.1", status, title);
-        addResponse(statusLineStr);
+        addResponse(strToBytes(statusLineStr));
     }
     private void addContentLength(int len) {
         String contentLengthStr = String.format("Content-Length:%d\r\n", len);
-        addResponse(contentLengthStr);
+        addResponse(strToBytes(contentLengthStr));
     }
 
     private void addConteType() {
         String contentTypeStr = String.format("Content-Type:%s\r\n", "text/html");
-        addResponse(contentTypeStr);
+        addResponse(strToBytes(contentTypeStr));
     }
 
-    private void addContent(String text) {
+    private void addBlankLine() {
+        addResponse(strToBytes("\r\n"));
+    }
+
+    private void addContent(byte[] text) {
         addResponse(text);
     }
-    private void addBlankLine() {
-        addResponse("\r\n");
-    }
-    private void addResponse(String str) {
-        String oldStr = new String(outputBuffer.array(), 0, outputBuffer.position());
-        int totalLength = oldStr.length() + str.length();
-        if (totalLength > outputBuffer.limit()) { // outputBuffer扩容
-            outputBuffer = CharBuffer.allocate(totalLength * 2);
-            outputBuffer.put(oldStr);
+
+    private byte[] strToBytes(String str) {
+        byte[] newArray;
+        try {
+            newArray = str.getBytes(charSetName);
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
         }
-        outputBuffer.put(str);
+        return newArray;
+    }
+    private void addResponse(byte[] newArray) {
+        byte[] oldArray = outputBuffer.array();
+        int offset = 0;
+        int count = outputBuffer.position();
+
+        int totalLength = count + newArray.length;
+        if (totalLength > outputBuffer.limit()) { // outputBuffer扩容
+            outputBuffer = ByteBuffer.allocate(totalLength * 2);
+            outputBuffer.put(oldArray, offset, count);
+        }
+        outputBuffer.put(newArray);
     }
 }

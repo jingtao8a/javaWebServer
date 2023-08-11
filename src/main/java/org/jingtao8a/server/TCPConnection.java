@@ -29,53 +29,49 @@ public class TCPConnection {
         channel.setChannelReadCallback(new ReadFunction());
         channel.setChannelWriteCallback(new WriteFunciton());
     }
-    public void send(String str, String charSetName) {
+    public void send(ByteBuffer buffer) {
         if (!channel.isWaitWrite()) { // 当前outputBuffer空闲
             assert(outputBuffer.position() == 0);
             SocketChannel socketChannel = (SocketChannel)channel.getSelectionKey().channel();
-            try {
-                int strLength = str.getBytes(charSetName).length;
-                if (strLength > outputBuffer.remaining()) {// 超出outputBuffer范围
-                    outputBuffer = ByteBuffer.allocate(strLength * 2);
-                }
-                outputBuffer.put(str.getBytes(charSetName));
-                outputBuffer.flip();
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
+            byte[] bufferArray = buffer.array();
+            int offset = buffer.position();
+            int count = buffer.remaining();
+            if (count > outputBuffer.remaining()) {// 超出outputBuffer范围
+                outputBuffer = ByteBuffer.allocate(count * 2);
             }
+            outputBuffer.put(bufferArray, offset, count);
+            outputBuffer.flip();
 
             try {
                 socketChannel.write(outputBuffer);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
             if (outputBuffer.hasRemaining()) {//还有剩余数据
-                try {
-                    String remainStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), charSetName);
-                    outputBuffer = ByteBuffer.allocate(remainStr.getBytes(charSetName).length * 2);
-                    outputBuffer.put(remainStr.getBytes(charSetName));
-                } catch (UnsupportedEncodingException e) {
-                    throw new RuntimeException(e);
-                }
+                byte[] remainArray = outputBuffer.array();
+                offset = outputBuffer.position();
+                count = outputBuffer.remaining();
+                outputBuffer = ByteBuffer.allocate(count * 2);
+                outputBuffer.put(remainArray, offset, count);
                 outputBuffer.flip();
                 channel.enableWrite();
             } else {
                 outputBuffer.clear();
             }
         } else {
-            try {
-                String oldStr = new String(outputBuffer.array(), outputBuffer.position(), outputBuffer.remaining(), charSetName);
-                outputBuffer.clear();
-                int totalLength = oldStr.getBytes(charSetName).length + str.getBytes(charSetName).length;
-                if (outputBuffer.limit() < totalLength) {
-                    outputBuffer = ByteBuffer.allocate(totalLength * 2);
-                }
-                outputBuffer.put(oldStr.getBytes(charSetName));
-                outputBuffer.put(str.getBytes(charSetName));
-                outputBuffer.flip();
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
+            byte[] oldArray = outputBuffer.array();
+            int offset = outputBuffer.position();
+            int count = outputBuffer.remaining();
+            byte[] newArray = buffer.array();
+            outputBuffer.clear();
+            int totalLength = count + newArray.length;
+            if (outputBuffer.limit() < totalLength) {
+                outputBuffer = ByteBuffer.allocate(totalLength * 2);
             }
+            outputBuffer.put(oldArray, offset, count);
+            outputBuffer.put(newArray);
+            outputBuffer.flip();
         }
     }
     public void connectionEstablished() {
