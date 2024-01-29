@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 public class HttpHandler {
-    private static String staticRoot = "D:/java_webserver/src/main/resources/root";
+    private static String staticRoot = "D:/javaWebServer/src/main/resources/root";
     private CharBuffer inputBuffer;
     private ByteBuffer outputBuffer;
     private CHECK_STATE checkState;

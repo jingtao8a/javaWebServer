@@ -14,6 +14,7 @@ public class HTTPServer {
     private TCPServer tcpServer;
 
     public HTTPServer(InetSocketAddress listenSocketAddress) {
+        System.out.println("HTTP Server bind" + listenSocketAddress.toString());
         tcpServer = new TCPServer(listenSocketAddress);
         tcpServer.setMessageCallback((TCPConnection connection, ByteBuffer buffer)->{
             HttpHandler httpHandler = HTTPHandlerManager.get(connection.getUuid());
@@ -22,6 +23,7 @@ public class HTTPServer {
     }
 
     public void start() {
+        System.out.println("HTTP Server start ...");
         tcpServer.start();
     }
 }
